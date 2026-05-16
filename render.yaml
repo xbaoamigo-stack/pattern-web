@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: pattern-web
+    runtime: python3
+    startCommand: python server.py
+    envVars: []
+    plan: free

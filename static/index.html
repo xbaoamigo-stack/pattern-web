@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>型態學波段分析器 · 台股 / 美股</title>
+<link rel="stylesheet" href="/static/style.css" />
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">📈</span>
+    <div class="brand-text">
+      <h1>型態學波段分析器</h1>
+      <p>K 線型態 · 量價結構 · 多空轉折 — 台股 / 美股</p>
+    </div>
+  </div>
+  <nav class="tabs">
+    <a class="tab active" data-tab="analyze">分析</a>
+    <a class="tab" data-tab="learn">型態學</a>
+    <a class="tab" data-tab="videos">學習資源</a>
+  </nav>
+</header>
+
+<main>
+  <!-- ============== 分析頁 ============== -->
+  <section class="view view-analyze active" id="view-analyze">
+    <div class="search">
+      <div class="market-toggle">
+        <button class="seg active" data-market="auto">自動</button>
+        <button class="seg" data-market="tw">台股</button>
+        <button class="seg" data-market="us">美股</button>
+      </div>
+      <input id="symbol" type="text" placeholder="輸入代號（台股 2330 / 美股 NVDA / AAPL）" />
+      <select id="range">
+        <option value="3mo">3 個月</option>
+        <option value="6mo" selected>6 個月</option>
+        <option value="1y">1 年</option>
+        <option value="2y">2 年</option>
+        <option value="5y">5 年</option>
+      </select>
+      <button id="go">分析</button>
+    </div>
+
+    <div class="presets">
+      <span class="preset-label">常用：</span>
+      <button class="chip" data-sym="2330" data-m="tw">台積電 2330</button>
+      <button class="chip" data-sym="2454" data-m="tw">聯發科 2454</button>
+      <button class="chip" data-sym="2317" data-m="tw">鴻海 2317</button>
+      <button class="chip" data-sym="^TWII" data-m="auto">台股大盤</button>
+      <button class="chip" data-sym="NVDA" data-m="us">NVDA</button>
+      <button class="chip" data-sym="TSLA" data-m="us">TSLA</button>
+      <button class="chip" data-sym="AAPL" data-m="us">AAPL</button>
+      <button class="chip" data-sym="^GSPC" data-m="auto">S&amp;P 500</button>
+      <button class="chip" data-sym="^IXIC" data-m="auto">NASDAQ</button>
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div class="results hidden" id="results">
+      <div class="header-row">
+        <div>
+          <h2 id="title">—</h2>
+          <p id="subtitle"></p>
+        </div>
+        <div class="price-block">
+          <div id="price" class="price">—</div>
+          <div id="change" class="change">—</div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card chart-card">
+          <div class="card-title">K 線圖 + 成交量</div>
+          <div id="chart"></div>
+        </div>
+
+        <div class="card analysis-card">
+          <div class="card-title">型態學分析</div>
+          <div id="signal-block"></div>
+          <div class="block">
+            <div class="block-title">趨勢</div>
+            <div id="trend" class="block-body">—</div>
+          </div>
+          <div class="block">
+            <div class="block-title">量價結構</div>
+            <div id="volprice" class="block-body">—</div>
+          </div>
+          <div class="block">
+            <div class="block-title">型態偵測</div>
+            <div id="patterns" class="block-body">—</div>
+          </div>
+          <div class="block">
+            <div class="block-title">操作觀察</div>
+            <div id="advice" class="block-body">—</div>
+          </div>
+        </div>
+
+        <div class="card pivots-card">
+          <div class="card-title">擺動高低點 (最近 10 個)</div>
+          <table id="pivots"><thead><tr><th>日期</th><th>類型</th><th>價格</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <p class="disclaimer">⚠️ 資料來自交易所公開 API。分析僅供研究參考，非投資建議。盈虧自負。</p>
+    </div>
+  </section>
+
+  <!-- ============== 型態學頁 ============== -->
+  <section class="view view-learn" id="view-learn">
+    <article class="article">
+      <h2>K 線型態學基礎</h2>
+      <p><strong>「型態為王，大道至簡」</strong> — 屏除繁雜指標，專注 K 線型態與量價結構。所有市場資訊最終都會反映在價格圖形上。</p>
+
+      <h3>12 種經典型態</h3>
+      <div class="cards-grid">
+        <div class="mini-card"><h4>🔴 底部型態</h4><ul><li>V 字底 — 急跌急升</li><li>U 字底 — 緩跌緩升</li><li>碗型底 — 圓弧底</li><li>雙重底 (W) — 兩次低點相近</li></ul></div>
+        <div class="mini-card"><h4>🔵 頭部型態</h4><ul><li>M 字頭 — 兩個高點</li><li>雙頂 — 同高度頂部</li><li>尖頂 — 快速上下</li><li>圓頂 — 緩慢翻轉</li></ul></div>
+        <div class="mini-card"><h4>🟡 中繼型態</h4><ul><li>三角形 — 收斂整理</li><li>旗形 — 平行整理</li><li>矩形 — 區間震盪</li><li>楔形 — 漸收斂</li></ul></div>
+      </div>
+
+      <h3>底部反轉的關鍵訊號</h3>
+      <ol>
+        <li>價格跌至前低附近但<strong>未有效跌破</strong></li>
+        <li>第二低點略高於第一低點（不能更低）</li>
+        <li>快速反轉向上 + <strong>成交量配合</strong></li>
+        <li>突破中間高點（頸線）= 確認反轉</li>
+        <li>停損設在第二低點下方</li>
+      </ol>
+
+      <h3>假突破 vs 真突破</h3>
+      <table class="cmp">
+        <tr><th></th><th>假突破</th><th>真突破</th></tr>
+        <tr><td>量能</td><td>無量或縮量</td><td>明顯放量</td></tr>
+        <tr><td>後續</td><td>馬上回到區間</td><td>持續推進</td></tr>
+        <tr><td>回測</td><td>跌破</td><td>不破</td></tr>
+        <tr><td>應對</td><td>反向操作</td><td>順勢加碼</td></tr>
+      </table>
+
+      <h3>操盤心法</h3>
+      <ul>
+        <li>📌 認賠比對更重要 — 嚴格執行停損</li>
+        <li>📌 不追高、不殺低</li>
+        <li>📌 風險報酬比至少 1:2</li>
+        <li>📌 操作不需盯盤，等待最佳時機</li>
+        <li>📌 計畫你的交易，交易你的計畫</li>
+      </ul>
+
+      <h3>漲跌測幅公式</h3>
+      <pre><code>上升目標 = 突破點 + (突破點 - 前低)
+下跌目標 = 突破點 - (前高 - 突破點)</code></pre>
+
+      <p class="ref-note">💡 本頁所述為通用 K 線型態學知識（Edwards & Magee 古典技術分析學派常見內容），與任何特定老師或商品無關，僅供教學研究參考。</p>
+
+      <h3 style="margin-top:32px">🔥 進階方法論（中文技術分析學派重點）</h3>
+      <p>以下重點整理自多個中文技術分析公開講座，為通用市場觀点。</p>
+
+      <h4>🎯 核心圓型訊號</h4>
+      <table class="cmp">
+        <tr><th>訊號</th><th>描述</th><th>操作意義</th></tr>
+        <tr><td><strong>破底翻</strong></td><td>價格跌破前低後迅速反彈，未有效跌破</td><td>拄底結構成立 → 倒名訊號</td></tr>
+        <tr><td><strong>假突破</strong></td><td>價格短暫突破關鍵壓力位後迅速回落</td><td>逆勢訊號 → 高檔逸頂</td></tr>
+        <tr><td><strong>量價背離</strong></td><td>價格创高但量能未同步</td><td>上漲動能不足 → 警訊</td></tr>
+        <tr><td><strong>主力攻擊成本</strong></td><td>價格突破主力成本區且量能配合</td><td>跟單點（買進）</td></tr>
+        <tr><td><strong>滿足點（多/空）</strong></td><td>型態頂部上竟距離 = 多空滿足目標</td><td>出場/減碼參考</td></tr>
+      </table>
+
+      <h4 style="margin-top:20px">📈 進場檢查清單</h4>
+      <ol>
+        <li><strong>趨勢方向</strong> — 高低點是否墊高？上升中才進場。</li>
+        <li><strong>型態訊號</strong> — W 底 / 破底翻 / 頭肩底出現。</li>
+        <li><strong>量能變化</strong> — 突破需要量能配合（量先價行）。</li>
+        <li><strong>主力成本</strong> — 價格窙定站上主力平均成本。</li>
+        <li><strong>項線確認</strong> — 突破項線來確認翻轉。</li>
+      </ol>
+
+      <h4 style="margin-top:20px">📉 出場 / 停損規則</h4>
+      <ul>
+        <li><strong>項線跌破</strong> → 頭部完成，立即出場</li>
+        <li><strong>達型態滿足點</strong> → 進行減碼</li>
+        <li><strong>出現假突破</strong> → 偏向出場或反向操作</li>
+        <li><strong>連續 2 次操作失誤</strong> → 提高警覺，減仓</li>
+        <li><strong>連續 3 次操作失誤</strong> → 收手，離場休息</li>
+        <li><strong>高檔逐步減碼</strong> → 不要敢電接落為主</li>
+      </ul>
+
+      <h4 style="margin-top:20px">💰 資金管理</h4>
+      <ul>
+        <li>低檔可提高仓位，高檔逆向逐步減碼</li>
+        <li><strong>不要 All-in、也不要一次出完</strong>：分批進出場乾均成本</li>
+        <li>以型態計算滿足點設定停利，不貧心交易</li>
+        <li>設停損：第二低點下方，跌破則出</li>
+      </ul>
+
+      <h4 style="margin-top:20px">🧠 心態紀律</h4>
+      <ul>
+        <li><strong>不要抱填（抱快請抱薥）</strong>：買進下跌不加碼，先認賟</li>
+        <li><strong>不要報復性交易</strong>：輸了不要想快速賺回來</li>
+        <li><strong>量價結構是主力足跡</strong>：量是真的，價可以騙人</li>
+        <li><strong>技術面反映基本面</strong>：不需要內線，所有資訊都在圖上</li>
+      </ul>
+
+      <p class="ref-note" style="margin-top:20px">📝 以上重點整理自公開訊息來源的通用技術分析觀點，屬市場公開認知，不指向任何特定老師或套餐。僅供學習參考使用。</p>
+    </article>
+  </section>
+
+  <!-- ============== 學習資源頁 ============== -->
+  <section class="view view-videos" id="view-videos">
+    <article class="article">
+      <h2>K 線型態學學習資源</h2>
+      <p>以下為公開可取得的技術分析學習資源，供進階研究參考。</p>
+
+      <h3>📚 經典書籍</h3>
+      <ul>
+        <li><strong>《Technical Analysis of Stock Trends》</strong> — Edwards & Magee，技術分析的鼻祖之作</li>
+        <li><strong>《Encyclopedia of Chart Patterns》</strong> — Thomas Bulkowski，型態圖鑑</li>
+        <li><strong>《Japanese Candlestick Charting Techniques》</strong> — Steve Nison，K 線之父</li>
+        <li><strong>《股票作手回憶錄》</strong> — Edwin Lefèvre，操盤心法</li>
+      </ul>
+
+      <h3>🎯 學習路徑建議</h3>
+      <ol class="video-list">
+        <li><strong>第一階段：型態識別</strong><small>先認得底部、頭部、中繼三大類，能在圖上指出位置</small></li>
+        <li><strong>第二階段：量價結構</strong><small>學會看放量、縮量與價格的搭配（量先價行）</small></li>
+        <li><strong>第三階段：突破與假突破</strong><small>區分有效突破，學會用回測確認</small></li>
+        <li><strong>第四階段：實戰演練</strong><small>用本工具掃個股，把判讀和事後結果對照</small></li>
+        <li><strong>第五階段：心態紀律</strong><small>停損執行、風險控管、不報復性交易</small></li>
+      </ol>
+
+      <h3>🔧 本工具如何幫你學</h3>
+      <ul>
+        <li>每次分析會自動標出擺動高低點（圖上的 H / L 箭頭）</li>
+        <li>趨勢判斷會告訴你目前是上升 / 下降 / 盤整</li>
+        <li>量價結構標籤幫你快速看出「爆量上漲」「量縮整理」等八種狀態</li>
+        <li>偵測到雙底、雙頂、底部反轉時會給訊號（但要自己再用眼睛確認）</li>
+      </ul>
+
+      <h3>⚠️ 重要提醒</h3>
+      <ul>
+        <li>沒有任何技術分析能保證獲利 — 都是「機率思維」</li>
+        <li>本工具的訊號只是初步篩選，<strong>不是進場建議</strong></li>
+        <li>實戰前先用紙上交易練 50+ 案例</li>
+        <li>真金白銀進場前，先想好停損點</li>
+      </ul>
+    </article>
+  </section>
+</main>
+
+<footer>
+  <p>型態學波段分析器 · 開源教學工具 · 資料來自交易所公開資訊</p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
