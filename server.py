@@ -394,7 +394,7 @@ def detect_break_then_recovery(candles, lookback=30):
     
     recent = candles[-lookback:]
     nl_data = detect_neckline(recent)
-    if not nl_data["neckline_low"]:
+    if not nl_data or not nl_data["neckline_low"]:
         return None
     
     neckline = nl_data["neckline_low"]
