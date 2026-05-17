@@ -795,7 +795,7 @@ def detect_pdf_break(candles, pivot_lows, pivot_highs):
 
 # ----- HTTP Server -----
 
-class CaisenHandler(BaseHTTPRequestHandler):
+class PatternAnalysisHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         print(f"[{time.strftime('%H:%M:%S')}] {fmt % args}")
 
@@ -872,4 +872,4 @@ class CaisenHandler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     host = "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"
     print(f"🟢 型態學波段分析網站 http://{host}:{PORT}/")
-    HTTPServer((host, PORT), CaisenHandler).serve_forever()
+    HTTPServer((host, PORT), PatternAnalysisHandler).serve_forever()
