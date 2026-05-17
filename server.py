@@ -73,118 +73,64 @@ def _range_to_months(range_):
 
 
 def fetch_tw_chart(symbol: str, range_: str):
-    """台股：優先用 Yahoo Finance（urllib），備用 TWSE"""
+    """台股：Yahoo Finance + 重試"""
     s = symbol.replace(".TW", "").replace(".TWO", "")
     if not s.isdigit():
         raise RuntimeError(f"invalid TW symbol: {symbol}")
     
-    # 優先嘗試 Yahoo Finance
-    try:
-        symbol_yahoo = s + ".TW"
-        range_map = {"1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y"}
-        range_param = range_map.get(range_, "6mo")
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol_yahoo}?interval=1d&range={range_param}"
-        req = urllib.request.Request(url, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            data = json.loads(resp.read())
-        
-        if data.get("chart", {}).get("result"):
-            result = data["chart"]["result"][0]
-            timestamp = result.get("timestamp", [])
-            quote = result.get("indicators", {}).get("quote", [{}])[0]
-            candles = []
-            for i, ts in enumerate(timestamp):
-                if i < len(quote.get("close", [])):
-                    c = quote.get("close", [])[i]
-                    if c is not None:
-                        candles.append({
-                            "time": ts,
-                            "open": quote.get("open", [])[i] if i < len(quote.get("open", [])) else None,
-                            "high": quote.get("high", [])[i] if i < len(quote.get("high", [])) else None,
-                            "low": quote.get("low", [])[i] if i < len(quote.get("low", [])) else None,
-                            "close": c,
-                            "volume": int(quote.get("volume", [])[i]) if i < len(quote.get("volume", [])) and quote.get("volume", [])[i] else 0,
-                        })
-            if candles:
-                return {
-                    "symbol": symbol,
-                    "currency": "TWD",
-                    "exchangeName": "TWSE",
-                    "longName": s,
-                    "regularMarketPrice": candles[-1]["close"],
-                    "previousClose": candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"],
-                    "candles": candles,
-                }
-    except Exception as e:
-        pass
+    symbol_yahoo = s + ".TW"
+    range_map = {"1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y"}
+    range_param = range_map.get(range_, "6mo")
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol_yahoo}?interval=1d&range={range_param}"
     
-    # 備用：TWSE 官方 API
-    months = _range_to_months(range_)
-    today = time.localtime()
-    candles = []
-    name = ""
-    # 抓近 N 個月份
-    y, m = today.tm_year, today.tm_mon
-    target_months = []
-    for _ in range(months + 1):
-        target_months.append((y, m))
-        m -= 1
-        if m == 0:
-            m = 12
-            y -= 1
-    target_months.reverse()
-    seen_dates = set()
-    for y, m in target_months:
-        date_str = f"{y:04d}{m:02d}01"
-        url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date={date_str}&stockNo={s}"
+    data = None
+    for attempt in range(2):
         try:
-            data = _curl_json(url, timeout=8)
-        except Exception:
-            continue
-        if data.get("stat") != "OK":
-            continue
-        if not name:
-            # title: "115年05月 2330 台積電           各日成交資訊"
-            t = data.get("title", "")
-            parts = t.split()
-            if len(parts) >= 3:
-                name = parts[2].strip()
-        for row in data.get("data", []):
-            # [日期, 成交股數, 成交金額, 開, 高, 低, 收, 漲跌, 成交筆數, 註記]
-            try:
-                roc_date = row[0]  # "115/05/04"
-                yp, mp, dp = roc_date.split("/")
-                ad_y = int(yp) + 1911
-                ts = int(time.mktime(time.strptime(f"{ad_y}-{mp}-{dp}", "%Y-%m-%d")))
-                if ts in seen_dates:
-                    continue
-                seen_dates.add(ts)
-                def _f(x):
-                    return float(x.replace(",", "")) if x and x != "--" else None
-                def _i(x):
-                    return int(x.replace(",", "")) if x and x != "--" else 0
-                candles.append({
-                    "time": ts,
-                    "open": _f(row[3]),
-                    "high": _f(row[4]),
-                    "low": _f(row[5]),
-                    "close": _f(row[6]),
-                    "volume": _i(row[1]),
-                })
-            except Exception:
+            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read())
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 1:
+                time.sleep(3)
                 continue
-    candles.sort(key=lambda c: c["time"])
+            raise RuntimeError(f"twse: {e.code}")
+        except Exception:
+            raise RuntimeError("twse: no data")
+    
+    if not data:
+        raise RuntimeError("twse: no data")
+    
+    result = data.get("chart", {}).get("result", [{}])[0]
+    if "error" in result:
+        raise RuntimeError(f"twse: {result['error']}")
+    
+    timestamp = result.get("timestamp", [])
+    quote = result.get("indicators", {}).get("quote", [{}])[0]
+    
+    candles = []
+    for i, ts in enumerate(timestamp):
+        close = quote.get("close", [])[i] if i < len(quote.get("close", [])) else None
+        if close is not None:
+            candles.append({
+                "time": ts,
+                "open": quote.get("open", [])[i] if i < len(quote.get("open", [])) else None,
+                "high": quote.get("high", [])[i] if i < len(quote.get("high", [])) else None,
+                "low": quote.get("low", [])[i] if i < len(quote.get("low", [])) else None,
+                "close": close,
+                "volume": int(quote.get("volume", [])[i]) if i < len(quote.get("volume", [])) and quote.get("volume", [])[i] else 0,
+            })
+    
     if not candles:
         raise RuntimeError("twse: no data")
-    last = candles[-1]
-    prev = candles[-2] if len(candles) >= 2 else last
+    
     return {
         "symbol": symbol,
         "currency": "TWD",
         "exchangeName": "TWSE",
-        "longName": name or s,
-        "regularMarketPrice": last["close"],
-        "previousClose": prev["close"],
+        "longName": s,
+        "regularMarketPrice": candles[-1]["close"],
+        "previousClose": candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"],
         "candles": candles,
     }
 
@@ -269,87 +215,31 @@ def fetch_us_chart(symbol: str, range_: str):
 
 
 def fetch_index_chart(symbol: str, range_: str):
-    """指數：^TWII / ^GSPC / ^IXIC — 用 ETF 代理拼 Nasdaq。
-    Stooq 現在都要 apikey，所以指數以 ETF 近似。"""
-    # 複製指數的 ETF（走 Nasdaq API）
-    etf_proxy = {
-        "^GSPC": ("SPY", "S&P 500 (代理 SPY)"),
-        "^IXIC": ("QQQ", "NASDAQ 100 (代理 QQQ)"),
-        "^DJI": ("DIA", "道璚斯 (代理 DIA)"),
-        "^TWII": (None, None),  # 由 TWSE 路徑處理 → 下面偶例外處理
-    }
+    """指數：^TWII 用 0050 代理，其他用 ETF 代理"""
+    # 台股大盤用 0050.TW 代理
     if symbol == "^TWII":
-        # 用 0050.TW 代理台股加權指數 (趴勢)
-        data = fetch_tw_chart("0050.TW", range_)
-        data["symbol"] = "^TWII"
-        data["longName"] = "台股加權指數 (代理 0050)"
-        return data
+        try:
+            data = fetch_tw_chart("0050.TW", range_)
+            data["symbol"] = "^TWII"
+            data["longName"] = "台股加權指數 (代理 0050)"
+            return data
+        except Exception as e:
+            raise RuntimeError(f"twse: no data (0050 代理失敗)")
+    
+    # 美股指數用 ETF
+    etf_proxy = {
+        "^GSPC": ("SPY", "S&P 500"),
+        "^IXIC": ("QQQ", "NASDAQ 100"),
+        "^DJI": ("DIA", "Dow Jones"),
+    }
     proxy = etf_proxy.get(symbol)
     if proxy and proxy[0]:
         data = fetch_us_chart(proxy[0], range_)
         data["symbol"] = symbol
         data["longName"] = proxy[1]
         return data
-    # 原本 Stooq 路徑 (作為 fallback)
-    mapping = {
-        "^GSPC": "^spx",
-        "^IXIC": "^ndq",
-        "^DJI": "^dji",
-        "^TWII": "^twse",
-    }
-    stq = mapping.get(symbol)
-    if not stq:
-        raise RuntimeError(f"unsupported index: {symbol}")
-    months = _range_to_months(range_)
-    # 計算起始日
-    today = time.localtime()
-    fromy, fromm = today.tm_year, today.tm_mon - months
-    while fromm <= 0:
-        fromm += 12
-        fromy -= 1
-    d1 = f"{fromy:04d}{fromm:02d}{today.tm_mday:02d}"
-    d2 = f"{today.tm_year:04d}{today.tm_mon:02d}{today.tm_mday:02d}"
-    url = f"https://stooq.com/q/d/l/?s={urllib.parse.quote(stq)}&d1={d1}&d2={d2}&i=d"
-    r = subprocess.run(["curl", "-s", "-A", UA, "--max-time", "15", url], capture_output=True, text=True, timeout=20)
-    txt = r.stdout.strip()
-    if not txt or txt.startswith("Get your apikey"):
-        raise RuntimeError("stooq: apikey required")
-    lines = txt.splitlines()
-    if len(lines) < 2:
-        raise RuntimeError("stooq: empty")
-    # CSV header: Date,Open,High,Low,Close,Volume
-    candles = []
-    for ln in lines[1:]:
-        parts = ln.split(",")
-        if len(parts) < 5:
-            continue
-        try:
-            ts = int(time.mktime(time.strptime(parts[0], "%Y-%m-%d")))
-            candles.append({
-                "time": ts,
-                "open": float(parts[1]),
-                "high": float(parts[2]),
-                "low": float(parts[3]),
-                "close": float(parts[4]),
-                "volume": int(parts[5]) if len(parts) > 5 and parts[5] else 0,
-            })
-        except Exception:
-            continue
-    candles.sort(key=lambda c: c["time"])
-    if not candles:
-        raise RuntimeError("stooq: 0 rows")
-    last = candles[-1]
-    prev = candles[-2] if len(candles) >= 2 else last
-    return {
-        "symbol": symbol,
-        "currency": "USD" if symbol != "^TWII" else "TWD",
-        "exchangeName": "INDEX",
-        "longName": symbol,
-        "regularMarketPrice": last["close"],
-        "previousClose": prev["close"],
-        "candles": candles,
-    }
-
+    
+    raise RuntimeError(f"unsupported index: {symbol}")
 
 def fetch_chart(symbol: str, market: str, range_: str = "6mo"):
     """統一抓入口：依市場路由到不同來源。帶多層 cache + 舊 cache fallback"""
