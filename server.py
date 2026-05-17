@@ -811,6 +811,40 @@ class PatternAnalysisHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_POST(self):
+        u = urlparse(self.path)
+        path = u.path
+        
+        # 行事曆 API - POST
+        if path == "/api/events":
+            try:
+                from calendar_api import add_event
+                content_len = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_len).decode('utf-8')
+                data = json.loads(body)
+                event_id = add_event(data)
+                return self._send(201, {"id": event_id, "status": "created"})
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
+        
+        return self._send(405, {"error": "method not allowed"})
+
+    def do_DELETE(self):
+        u = urlparse(self.path)
+        path = u.path
+        
+        # 行事曆 API - DELETE
+        if path.startswith("/api/events/"):
+            try:
+                from calendar_api import delete_event
+                event_id = int(path.split('/')[-1])
+                delete_event(event_id)
+                return self._send(200, {"status": "deleted"})
+            except Exception as e:
+                return self._send(400, {"error": str(e)})
+        
+        return self._send(405, {"error": "method not allowed"})
+
     def do_GET(self):
         u = urlparse(self.path)
         path = u.path
@@ -818,8 +852,19 @@ class PatternAnalysisHandler(BaseHTTPRequestHandler):
 
         if path == "/" or path == "/index.html":
             return self._serve_static("index.html", "text/html; charset=utf-8")
+        if path == "/calendar" or path == "/calendar.html":
+            return self._serve_static("calendar.html", "text/html; charset=utf-8")
         if path.startswith("/static/"):
             return self._serve_static(path[len("/static/"):], None)
+
+        # 行事曆 API - GET
+        if path == "/api/events":
+            try:
+                from calendar_api import load_events
+                events = load_events()
+                return self._send(200, events)
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
 
         if path == "/api/analyze":
             symbol = (qs.get("symbol", [""])[0]).strip()
