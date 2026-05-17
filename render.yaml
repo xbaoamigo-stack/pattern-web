@@ -2,6 +2,5 @@ services:
   - type: web
     name: pattern-web
     runtime: python3
-    startCommand: python server.py
-    envVars: []
+    startCommand: python3 server.py
     plan: free

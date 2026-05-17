@@ -870,6 +870,7 @@ class PatternAnalysisHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    # Render/cloud deployment 自動設定 PORT，本機預設 5777
     host = "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"
     print(f"🟢 型態學波段分析網站 http://{host}:{PORT}/")
     HTTPServer((host, PORT), PatternAnalysisHandler).serve_forever()
