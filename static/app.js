@@ -233,6 +233,34 @@
       }
     }
 
+    // 交易計畫
+    const tp = data.analysis.trading_plan;
+    if (tp) {
+      const tpEl = $('trading-plan');
+      if (tpEl) {
+        tpEl.innerHTML = `
+          <div class="trading-grid">
+            <div class="tp-item">
+              <span class="label">進場價</span>
+              <span class="value">${tp.entry_price || '—'}</span>
+            </div>
+            <div class="tp-item">
+              <span class="label">停損點</span>
+              <span class="value">${tp.stop_loss || '—'}</span>
+            </div>
+            <div class="tp-item">
+              <span class="label">目標價</span>
+              <span class="value">${tp.target_price || '—'}</span>
+            </div>
+            <div class="tp-item">
+              <span class="label">風險:報酬</span>
+              <span class="value">${tp.risk_reward_ratio ? '1:' + tp.risk_reward_ratio.toFixed(1) : '—'}</span>
+            </div>
+          </div>
+        `;
+      }
+    }
+
     // 擺動點表格
     const tbody = $('pivots').querySelector('tbody');
     tbody.innerHTML = a.pivots.map(p => {
