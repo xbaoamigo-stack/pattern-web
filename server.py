@@ -357,7 +357,7 @@ def normalize_symbol(symbol: str, market: str = "auto") -> str:
 
 
 
-# ----- 蔡森型態學 + 量價背離核心算法 -----
+# ----- 經典波段型態學 + 量價背離核心算法 -----
 
 def detect_neckline(candles, lookback=60):
     """
@@ -538,13 +538,13 @@ def analyze_patterns(candles):
     else:
         advice.append("➡️ 趨勢不明，盤整為主")
 
-    # 6a. 蔡森核心訊號：破底翻、量價背離、頸線、進場點
-    cai_signals = {}
+    # 6a. 經典波段核心訊號：破底翻、量價背離、頸線、進場點
+    pattern_signals = {}
     
     # 破底翻偵測
     break_recovery = detect_break_then_recovery(candles)
     if break_recovery:
-        cai_signals["break_recovery"] = {
+        pattern_signals["break_recovery"] = {
             "type": break_recovery["type"],
             "break_price": round(break_recovery["break_price"], 2),
             "recovery_price": round(break_recovery["recovery_price"], 2),
@@ -556,14 +556,14 @@ def analyze_patterns(candles):
     # 量價背離偵測
     vol_div = detect_volume_price_divergence(candles)
     if vol_div:
-        cai_signals["volume_divergence"] = vol_div
+        pattern_signals["volume_divergence"] = vol_div
     
     # 頸線情報
     neckline_data = detect_neckline(candles)
     if neckline_data["neckline_low"]:
-        cai_signals["neckline_low"] = round(neckline_data["neckline_low"], 2)
+        pattern_signals["neckline_low"] = round(neckline_data["neckline_low"], 2)
     if neckline_data["neckline_high"]:
-        cai_signals["neckline_high"] = round(neckline_data["neckline_high"], 2)
+        pattern_signals["neckline_high"] = round(neckline_data["neckline_high"], 2)
     
     # 計算進場、停損、目標價
     current = closes[-1]
@@ -596,7 +596,7 @@ def analyze_patterns(candles):
             "price_action": price_action,
             "vol_price_combo": vol_price,
         },
-        "cai_signals": cai_signals,
+        "pattern_signals": pattern_signals,
         "trading_plan": {
             "current_price": round(current, 2),
             "entry_price": round(entry_price, 2) if entry_price else None,
