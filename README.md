@@ -54,3 +54,4 @@ python3 server.py
 ## ⚠️ 免責
 
 本工具為通用 K 線型態學教學工具，所述內容來自公開技術分析學派（Edwards & Magee 等古典）。分析僅供研究參考，非投資建議，盈虧自負。
+# Updated: Sun May 17 08:55:18 CST 2026
