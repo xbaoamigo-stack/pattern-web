@@ -560,10 +560,11 @@ def analyze_patterns(candles):
     
     # 頸線情報
     neckline_data = detect_neckline(candles)
-    if neckline_data["neckline_low"]:
-        pattern_signals["neckline_low"] = round(neckline_data["neckline_low"], 2)
-    if neckline_data["neckline_high"]:
-        pattern_signals["neckline_high"] = round(neckline_data["neckline_high"], 2)
+    if neckline_data:
+        if neckline_data["neckline_low"]:
+            pattern_signals["neckline_low"] = round(neckline_data["neckline_low"], 2)
+        if neckline_data["neckline_high"]:
+            pattern_signals["neckline_high"] = round(neckline_data["neckline_high"], 2)
     
     # 計算進場、停損、目標價
     current = closes[-1]
@@ -574,9 +575,9 @@ def analyze_patterns(candles):
     if break_recovery:
         entry_price = break_recovery["neckline"] * 1.01
         stop_loss = break_recovery["break_price"] * 0.99
-        if neckline_data["neckline_high"]:
+        if neckline_data and neckline_data["neckline_high"]:
             target_price = neckline_data["neckline_high"]
-    elif neckline_data["neckline_low"]:
+    elif neckline_data and neckline_data["neckline_low"]:
         entry_price = neckline_data["neckline_low"] * 1.01
         stop_loss = neckline_data["neckline_low"] * 0.98
         if neckline_data["neckline_high"]:
