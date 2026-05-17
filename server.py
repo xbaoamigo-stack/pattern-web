@@ -357,7 +357,110 @@ def normalize_symbol(symbol: str, market: str = "auto") -> str:
 
 
 
-# ----- 型態學分析邏輯 -----
+# ----- 蔡森型態學 + 量價背離核心算法 -----
+
+def detect_neckline(candles, lookback=60):
+    """
+    計算頸線位置（底部/頭部的關鍵支撐/壓力位）
+    - 低點組：找最近 N 根 K 線中的兩個相近低點
+    - 高點組：找最近 N 根 K 線中的兩個相近高點
+    """
+    if len(candles) < lookback:
+        return None
+    
+    recent = candles[-lookback:]
+    lows = [(i, c["low"]) for i, c in enumerate(recent)]
+    highs = [(i, c["high"]) for i, c in enumerate(recent)]
+    
+    # 找最低的 2 個低點
+    sorted_lows = sorted(lows, key=lambda x: x[1])[:2]
+    neckline_low = sum(x[1] for x in sorted_lows) / 2 if sorted_lows else None
+    
+    # 找最高的 2 個高點
+    sorted_highs = sorted(highs, key=lambda x: -x[1])[:2]
+    neckline_high = sum(x[1] for x in sorted_highs) / 2 if sorted_highs else None
+    
+    return {"neckline_low": neckline_low, "neckline_high": neckline_high}
+
+def detect_break_then_recovery(candles, lookback=30):
+    """
+    破底翻偵測：
+    1. 跌破頸線
+    2. 隨後 1-5 根 K 線內拉回上去
+    -> 買進訊號
+    """
+    if len(candles) < lookback:
+        return None
+    
+    recent = candles[-lookback:]
+    nl_data = detect_neckline(recent)
+    if not nl_data["neckline_low"]:
+        return None
+    
+    neckline = nl_data["neckline_low"]
+    
+    # 找最近一次跌破頸線的點
+    break_idx = None
+    for i in range(len(recent) - 1, -1, -1):
+        if recent[i]["low"] < neckline:
+            break_idx = i
+            break
+    
+    if break_idx is None or break_idx >= len(recent) - 1:
+        return None
+    
+    # 檢查後續 5 根內有沒有拉回上頸線
+    for i in range(break_idx + 1, min(break_idx + 6, len(recent))):
+        if recent[i]["close"] > neckline:
+            # 確認破底翻！
+            return {
+                "type": "break_then_recovery",
+                "break_price": recent[break_idx]["low"],
+                "recovery_price": recent[i]["close"],
+                "neckline": neckline,
+                "days_to_recovery": i - break_idx,
+                "confidence": 0.8 if i - break_idx <= 3 else 0.6,
+            }
+    
+    return None
+
+def detect_volume_price_divergence(candles, lookback=30):
+    """
+    量價背離偵測：
+    - 高檔「價漲量縮」= 出貨（空頭）
+    - 低檔「價跌量增」= 吸籌（多頭）
+    """
+    if len(candles) < lookback:
+        return None
+    
+    recent = candles[-lookback:]
+    
+    # 最近 5 天 vs 前 20 天的量 + 價
+    recent_5 = recent[-5:]
+    prev_20 = recent[-25:-5] if len(recent) >= 25 else recent[:-5]
+    
+    recent_vol = sum(c.get("volume", 0) or 0 for c in recent_5) / 5
+    prev_vol = sum(c.get("volume", 0) or 0 for c in prev_20) / len(prev_20) if prev_20 else recent_vol
+    vol_ratio = recent_vol / prev_vol if prev_vol > 0 else 1
+    
+    recent_high = max(c["high"] for c in recent_5)
+    prev_high = max(c["high"] for c in prev_20) if prev_20 else recent_high
+    
+    recent_low = min(c["low"] for c in recent_5)
+    prev_low = min(c["low"] for c in prev_20) if prev_20 else recent_low
+    
+    # 判斷高檔或低檔
+    price_level = "high" if recent_high > prev_high * 1.05 else ("low" if recent_low < prev_low * 0.95 else "middle")
+    
+    divergence = None
+    if price_level == "high" and vol_ratio < 0.9:
+        # 高檔價漲量縮 = 出貨
+        divergence = {"type": "price_up_volume_down", "signal": "sell", "confidence": 0.7}
+    elif price_level == "low" and vol_ratio > 1.3:
+        # 低檔價跌量增 = 吸籌
+        divergence = {"type": "price_down_volume_up", "signal": "buy", "confidence": 0.75}
+    
+    return divergence
 
 def analyze_patterns(candles):
     """
