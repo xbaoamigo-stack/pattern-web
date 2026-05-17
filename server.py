@@ -73,11 +73,46 @@ def _range_to_months(range_):
 
 
 def fetch_tw_chart(symbol: str, range_: str):
-    """台股：使用 TWSE 證交所公開資料 (月查詢並拼接)"""
-    # symbol 例如 "2330.TW" → "2330"
+    """台股：優先用 Yahoo Finance，備用 TWSE"""
     s = symbol.replace(".TW", "").replace(".TWO", "")
     if not s.isdigit():
         raise RuntimeError(f"invalid TW symbol: {symbol}")
+    
+    # 優先嘗試 Yahoo Finance（Render 環境更穩定）
+    try:
+        symbol_yahoo = s + ".TW"
+        range_map = {"1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y"}
+        range_param = range_map.get(range_, "6mo")
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol_yahoo}?interval=1d&range={range_param}"
+        data = _curl_json(url, timeout=15)
+        
+        if data.get("chart", {}).get("result"):
+            result = data["chart"]["result"][0]
+            timestamp = result.get("timestamp", [])
+            quote = result.get("indicators", {}).get("quote", [{}])[0]
+            candles = []
+            for i, ts in enumerate(timestamp):
+                c = quote.get("close", [])[i] if i < len(quote.get("close", [])) else None
+                o = quote.get("open", [])[i] if i < len(quote.get("open", [])) else None
+                h = quote.get("high", [])[i] if i < len(quote.get("high", [])) else None
+                l = quote.get("low", [])[i] if i < len(quote.get("low", [])) else None
+                v = quote.get("volume", [])[i] if i < len(quote.get("volume", [])) else None
+                if c is not None:
+                    candles.append({"time": ts, "open": o, "high": h, "low": l, "close": c, "volume": int(v) if v else 0})
+            if candles:
+                return {
+                    "symbol": symbol,
+                    "currency": "TWD",
+                    "exchangeName": "TWSE",
+                    "longName": s,
+                    "regularMarketPrice": candles[-1]["close"],
+                    "previousClose": candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"],
+                    "candles": candles,
+                }
+    except Exception:
+        pass
+    
+    # 備用：TWSE 官方 API
     months = _range_to_months(range_)
     today = time.localtime()
     candles = []
@@ -97,7 +132,7 @@ def fetch_tw_chart(symbol: str, range_: str):
         date_str = f"{y:04d}{m:02d}01"
         url = f"https://www.twse.com.tw/exchangeReport/STOCK_DAY?response=json&date={date_str}&stockNo={s}"
         try:
-            data = _curl_json(url, timeout=12)
+            data = _curl_json(url, timeout=8)
         except Exception:
             continue
         if data.get("stat") != "OK":
