@@ -538,6 +538,51 @@ def analyze_patterns(candles):
     else:
         advice.append("➡️ 趨勢不明，盤整為主")
 
+    # 6a. 蔡森核心訊號：破底翻、量價背離、頸線、進場點
+    cai_signals = {}
+    
+    # 破底翻偵測
+    break_recovery = detect_break_then_recovery(candles)
+    if break_recovery:
+        cai_signals["break_recovery"] = {
+            "type": break_recovery["type"],
+            "break_price": round(break_recovery["break_price"], 2),
+            "recovery_price": round(break_recovery["recovery_price"], 2),
+            "neckline": round(break_recovery["neckline"], 2),
+            "days_to_recovery": break_recovery["days_to_recovery"],
+            "confidence": round(break_recovery["confidence"], 2),
+        }
+    
+    # 量價背離偵測
+    vol_div = detect_volume_price_divergence(candles)
+    if vol_div:
+        cai_signals["volume_divergence"] = vol_div
+    
+    # 頸線情報
+    neckline_data = detect_neckline(candles)
+    if neckline_data["neckline_low"]:
+        cai_signals["neckline_low"] = round(neckline_data["neckline_low"], 2)
+    if neckline_data["neckline_high"]:
+        cai_signals["neckline_high"] = round(neckline_data["neckline_high"], 2)
+    
+    # 計算進場、停損、目標價
+    current = closes[-1]
+    entry_price = None
+    stop_loss = None
+    target_price = None
+    
+    if break_recovery:
+        entry_price = break_recovery["neckline"] * 1.01
+        stop_loss = break_recovery["break_price"] * 0.99
+        if neckline_data["neckline_high"]:
+            target_price = neckline_data["neckline_high"]
+    elif neckline_data["neckline_low"]:
+        entry_price = neckline_data["neckline_low"] * 1.01
+        stop_loss = neckline_data["neckline_low"] * 0.98
+        if neckline_data["neckline_high"]:
+            target_price = neckline_data["neckline_high"]
+
+    # 6b. 綜合計分 → 明確訊號
     # 6. 綜合計分 → 明確訊號
     signal = compute_signal(trend, patterns, vol_signal, price_action, vol_price)
 
@@ -551,12 +596,21 @@ def analyze_patterns(candles):
             "price_action": price_action,
             "vol_price_combo": vol_price,
         },
+        "cai_signals": cai_signals,
+        "trading_plan": {
+            "current_price": round(current, 2),
+            "entry_price": round(entry_price, 2) if entry_price else None,
+            "stop_loss": round(stop_loss, 2) if stop_loss else None,
+            "target_price": round(target_price, 2) if target_price else None,
+            "risk_reward_ratio": round((target_price - entry_price) / (entry_price - stop_loss), 2) if (entry_price and stop_loss and target_price and entry_price != stop_loss) else None,
+        },
         "advice": advice,
         "signal": signal,
         "pivots": pivots[-10:],  # 最近 10 個轉折點
         "current_price": closes[-1],
         "recent_change_pct": round(recent_change, 2),
     }
+
 
 
 def compute_signal(trend, patterns, vol_signal, price_action, vol_price):
