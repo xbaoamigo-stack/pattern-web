@@ -73,18 +73,20 @@ def _range_to_months(range_):
 
 
 def fetch_tw_chart(symbol: str, range_: str):
-    """台股：優先用 Yahoo Finance，備用 TWSE"""
+    """台股：優先用 Yahoo Finance（urllib），備用 TWSE"""
     s = symbol.replace(".TW", "").replace(".TWO", "")
     if not s.isdigit():
         raise RuntimeError(f"invalid TW symbol: {symbol}")
     
-    # 優先嘗試 Yahoo Finance（Render 環境更穩定）
+    # 優先嘗試 Yahoo Finance
     try:
         symbol_yahoo = s + ".TW"
         range_map = {"1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y"}
         range_param = range_map.get(range_, "6mo")
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol_yahoo}?interval=1d&range={range_param}"
-        data = _curl_json(url, timeout=15)
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read())
         
         if data.get("chart", {}).get("result"):
             result = data["chart"]["result"][0]
@@ -92,13 +94,17 @@ def fetch_tw_chart(symbol: str, range_: str):
             quote = result.get("indicators", {}).get("quote", [{}])[0]
             candles = []
             for i, ts in enumerate(timestamp):
-                c = quote.get("close", [])[i] if i < len(quote.get("close", [])) else None
-                o = quote.get("open", [])[i] if i < len(quote.get("open", [])) else None
-                h = quote.get("high", [])[i] if i < len(quote.get("high", [])) else None
-                l = quote.get("low", [])[i] if i < len(quote.get("low", [])) else None
-                v = quote.get("volume", [])[i] if i < len(quote.get("volume", [])) else None
-                if c is not None:
-                    candles.append({"time": ts, "open": o, "high": h, "low": l, "close": c, "volume": int(v) if v else 0})
+                if i < len(quote.get("close", [])):
+                    c = quote.get("close", [])[i]
+                    if c is not None:
+                        candles.append({
+                            "time": ts,
+                            "open": quote.get("open", [])[i] if i < len(quote.get("open", [])) else None,
+                            "high": quote.get("high", [])[i] if i < len(quote.get("high", [])) else None,
+                            "low": quote.get("low", [])[i] if i < len(quote.get("low", [])) else None,
+                            "close": c,
+                            "volume": int(quote.get("volume", [])[i]) if i < len(quote.get("volume", [])) and quote.get("volume", [])[i] else 0,
+                        })
             if candles:
                 return {
                     "symbol": symbol,
@@ -109,7 +115,7 @@ def fetch_tw_chart(symbol: str, range_: str):
                     "previousClose": candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"],
                     "candles": candles,
                 }
-    except Exception:
+    except Exception as e:
         pass
     
     # 備用：TWSE 官方 API
