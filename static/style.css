@@ -261,3 +261,33 @@ footer {
   border-top: 1px solid var(--border);
   margin-top: 32px;
 }
+
+/* 交易計畫網格 */
+.trading-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.tp-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: rgba(255,255,255, 0.03);
+  border-radius: 4px;
+  border-left: 3px solid #84cc16;
+}
+
+.tp-item .label {
+  font-size: 0.75rem;
+  color: #8b949e;
+  margin-bottom: 4px;
+}
+
+.tp-item .value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #84cc16;
+}
+
