@@ -73,66 +73,66 @@ def _range_to_months(range_):
 
 
 def fetch_tw_chart(symbol: str, range_: str):
-    """台股：Yahoo Finance + 重試"""
+    """台股：FinMind API（免費無限制）"""
     s = symbol.replace(".TW", "").replace(".TWO", "")
     if not s.isdigit():
         raise RuntimeError(f"invalid TW symbol: {symbol}")
     
-    symbol_yahoo = s + ".TW"
-    range_map = {"1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y", "5y": "5y"}
-    range_param = range_map.get(range_, "6mo")
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol_yahoo}?interval=1d&range={range_param}"
+    months = _range_to_months(range_)
+    today = time.localtime()
+    from_y = today.tm_year
+    from_m = today.tm_mon - months
+    while from_m <= 0:
+        from_m += 12
+        from_y -= 1
+    from_date = f"{from_y:04d}-{from_m:02d}-01"
+    to_date = f"{today.tm_year:04d}-{today.tm_mon:02d}-{today.tm_mday:02d}"
     
-    data = None
-    for attempt in range(2):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read())
-            break
-        except urllib.error.HTTPError as e:
-            if e.code == 429 and attempt < 1:
-                time.sleep(3)
-                continue
-            raise RuntimeError(f"twse: {e.code}")
-        except Exception:
+    url = f"https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id={s}&start_date={from_date}"
+    
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+        
+        rows = data.get("data", [])
+        if not rows:
             raise RuntimeError("twse: no data")
-    
-    if not data:
-        raise RuntimeError("twse: no data")
-    
-    result = data.get("chart", {}).get("result", [{}])[0]
-    if "error" in result:
-        raise RuntimeError(f"twse: {result['error']}")
-    
-    timestamp = result.get("timestamp", [])
-    quote = result.get("indicators", {}).get("quote", [{}])[0]
-    
-    candles = []
-    for i, ts in enumerate(timestamp):
-        close = quote.get("close", [])[i] if i < len(quote.get("close", [])) else None
-        if close is not None:
-            candles.append({
-                "time": ts,
-                "open": quote.get("open", [])[i] if i < len(quote.get("open", [])) else None,
-                "high": quote.get("high", [])[i] if i < len(quote.get("high", [])) else None,
-                "low": quote.get("low", [])[i] if i < len(quote.get("low", [])) else None,
-                "close": close,
-                "volume": int(quote.get("volume", [])[i]) if i < len(quote.get("volume", [])) and quote.get("volume", [])[i] else 0,
-            })
-    
-    if not candles:
-        raise RuntimeError("twse: no data")
-    
-    return {
-        "symbol": symbol,
-        "currency": "TWD",
-        "exchangeName": "TWSE",
-        "longName": s,
-        "regularMarketPrice": candles[-1]["close"],
-        "previousClose": candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"],
-        "candles": candles,
-    }
+        
+        candles = []
+        for row in rows:
+            try:
+                date_str = row.get("date")  # "2026-05-15"
+                yy, mm, dd = date_str.split('-')
+                ts = int(time.mktime(time.strptime(f"{yy}-{mm}-{dd}", "%Y-%m-%d")))
+                c = {
+                    "time": ts,
+                    "open": float(row.get("open")) if row.get("open") else None,
+                    "high": float(row.get("max")) if row.get("max") else None,
+                    "low": float(row.get("min")) if row.get("min") else None,
+                    "close": float(row.get("close")) if row.get("close") else None,
+                    "volume": int(row.get("Trading_Volume", 0)) if row.get("Trading_Volume") else 0,
+                }
+                if c["close"] is not None:
+                    candles.append(c)
+            except Exception:
+                continue
+        
+        candles.sort(key=lambda x: x["time"])
+        if not candles:
+            raise RuntimeError("twse: no data")
+        
+        return {
+            "symbol": symbol,
+            "currency": "TWD",
+            "exchangeName": "TWSE",
+            "longName": s,
+            "regularMarketPrice": candles[-1]["close"],
+            "previousClose": candles[-2]["close"] if len(candles) > 1 else candles[-1]["close"],
+            "candles": candles,
+        }
+    except Exception as e:
+        raise RuntimeError(f"twse: {str(e)}")
 
 
 def fetch_us_chart(symbol: str, range_: str):
